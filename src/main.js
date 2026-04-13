@@ -108,6 +108,19 @@ class Script implements IBusinessScript {
         // def price = params.price as BigDecimal        // 转高精度数值
         // def safeNum = (params.num ?: '0') as int      // 安全取值 + 转换
 
+        // ⚠️ 业务异常 — 向前端返回自定义错误提示:
+        // import com.weef.nacos.common.exception.AppCommonException
+        // if (!params.year) throw new AppCommonException("请选择年份")
+        // if (params.age && (params.age as int) < 0) throw new AppCommonException("年龄不能为负数")
+
+        // ---- 文件下载 ----
+        // 网关自动根据返回类型切换: return byte[] → 文件下载, return 其他 → JSON
+        // 前端可通过 _filename 参数指定下载文件名, 示例:
+        //
+        // if (!params.year) throw new AppCommonException("请传入 year 参数")
+        // def bytes = ctx.reportHelper.generateExcel(params)  // 生成 Excel byte[]
+        // return bytes  // 前端自动触发文件下载
+
         // ---- 3. 返回结果 (框架自动封装为标准响应) ----
         return [msg: "Hello from Groovy!", params: params]
     }
@@ -913,35 +926,59 @@ async function runScript() {
 
   try {
     const resp = await api.testScript(bizCode, params, track);
+    const contentType = resp.headers.get('content-type') || '';
+
+    // ===== 文件下载：Content-Type 为 octet-stream =====
+    if (contentType.includes('application/octet-stream')) {
+      const disposition = resp.headers.get('content-disposition') || '';
+      const filenameMatch = disposition.match(/filename=(.+)/);
+      const filename = filenameMatch ? decodeURIComponent(filenameMatch[1]) : 'download.xlsx';
+      const arrayBuffer = await resp.arrayBuffer();
+
+      // Web: blob 下载
+      const blob = new Blob([arrayBuffer]);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      appendOutput(`✅ 文件已下载: ${filename} (${arrayBuffer.byteLength} bytes)`, 'success');
+      return; // 文件下载完成，不走 JSON 逻辑
+    }
+
+    // ===== 正常 JSON 响应 =====
+    const data = await resp.json();
 
     // ScriptResult 结构: { code, message, data, _trace, _track, _error, _stackTrace, cost }
 
     // 1. 展示完整接口响应结构（前端开发视角）
     appendOutput('\n── 返回结果 ──', 'label');
-    const apiResponse = { code: resp.code, message: resp.message, data: resp.data };
-    appendOutput(JSON.stringify(apiResponse, null, 2), resp.code === 200 ? 'success' : 'error');
+    const apiResponse = { code: data.code, message: data.message, data: data.data };
+    appendOutput(JSON.stringify(apiResponse, null, 2), data.code === 200 ? 'success' : 'error');
 
     // 2. 异常时展示堆栈
-    if (resp.code && resp.code !== 200 && resp._stackTrace) {
+    if (data.code && data.code !== 200 && data._stackTrace) {
       appendOutput('\n── 异常堆栈 ──', 'label');
-      appendOutput(resp._stackTrace, 'error');
+      appendOutput(data._stackTrace, 'error');
     }
 
     // 3. 展示 Trace 日志
-    if (resp._trace && resp._trace.length > 0) {
+    if (data._trace && data._trace.length > 0) {
       appendOutput('\n── Trace 日志 ──', 'label');
-      resp._trace.forEach(t => appendOutput(t, 'trace'));
+      data._trace.forEach(t => appendOutput(t, 'trace'));
     }
 
     // 4. 展示 Track 调用链
-    if (resp._track && resp._track.beanCalls && resp._track.beanCalls.length > 0) {
+    if (data._track && data._track.beanCalls && data._track.beanCalls.length > 0) {
       appendOutput('\n── Track 调用链 ──', 'label');
-      resp._track.beanCalls.forEach(d => appendOutput(d, 'debug'));
+      data._track.beanCalls.forEach(d => appendOutput(d, 'debug'));
     }
 
     // 5. 展示耗时
-    if (resp.cost != null) {
-      appendOutput(`\n⏱ 耗时: ${resp.cost}ms`, 'trace');
+    if (data.cost != null) {
+      appendOutput(`\n⏱ 耗时: ${data.cost}ms`, 'trace');
     }
   } catch (e) {
     appendOutput('✗ 执行失败: ' + e.message, 'error');
