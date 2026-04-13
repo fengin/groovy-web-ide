@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Groovy Script Web IDE - 动态脚本管理与在线调试工具" />
+  <title>Groovy Script Web IDE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <!-- 顶部导航 -->
+  <header id="app-header">
+    <div class="header-left">
+      <div class="logo">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <path d="M14 2L25 8.5V19.5L14 26L3 19.5V8.5L14 2Z" stroke="url(#logo-g)" stroke-width="1.8" stroke-linejoin="round" fill="none"/>
+          <path d="M11 9.5V18.5L19.5 14L11 9.5Z" fill="#f59e0b" stroke="none"/>
+          <defs>
+            <linearGradient id="logo-g" x1="0" y1="0" x2="28" y2="28">
+              <stop stop-color="#2563eb"/>
+              <stop offset="1" stop-color="#06b6d4"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <span>Groovy Web IDE</span>
+      </div>
+    </div>
+    <div class="header-center">
+      <div class="connection-badge" id="connectionBadge">
+        <span class="dot"></span>
+        <span class="text">未连接</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <button id="btnTheme" class="theme-toggle" title="切换主题">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/>
+        </svg>
+      </button>
+      <button id="btnSettings" class="icon-btn" title="连接设置">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- 主布局 -->
+  <main id="app-main">
+    <!-- 左侧脚本列表 -->
+    <aside id="sidebar">
+      <div class="sidebar-header">
+        <h3>脚本列表</h3>
+        <button id="btnNewScript" class="btn-primary-sm" title="新建脚本">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+      </div>
+      <div class="sidebar-filter">
+        <input type="text" id="searchInput" placeholder="搜索脚本..." />
+      </div>
+      <div id="scriptList" class="script-list">
+        <div class="empty-state">连接后端以加载脚本</div>
+      </div>
+    </aside>
+
+    <!-- 中间编辑区 -->
+    <section id="editorPanel">
+      <div class="editor-toolbar">
+        <div class="tabs-wrapper">
+          <button id="tabScrollLeft" class="tab-scroll-btn" title="向左滚动">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <div class="editor-tabs" id="editorTabs">
+            <span class="tab-placeholder">请选择或创建脚本</span>
+          </div>
+          <button id="tabScrollRight" class="tab-scroll-btn" title="向右滚动">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </div>
+        <div class="editor-actions">
+          <button id="btnSave" class="btn-action" disabled title="保存 (Ctrl+S)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17,21 17,13 7,13 7,21"/><polyline points="7,3 7,8 15,8"/></svg>
+            <span>保存</span>
+          </button>
+          <button id="btnRun" class="btn-run" disabled title="测试运行 (Ctrl+Enter)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5,3 19,12 5,21 5,3"/></svg>
+            <span>运行</span>
+          </button>
+          <label class="debug-toggle" title="追踪模式">
+            <input type="checkbox" id="trackToggle" />
+            <span>Track</span>
+          </label>
+        </div>
+      </div>
+      <div id="monacoEditor" class="monaco-container"></div>
+    </section>
+
+    <!-- 右侧面板 -->
+    <aside id="rightPanel">
+      <!-- 脚本元信息 -->
+      <div class="panel-section" id="metaPanel">
+        <h4>脚本信息</h4>
+        <div class="meta-form">
+          <label>bizCode<input type="text" id="metaBizCode" placeholder="如 ems_dashboard_home" /></label>
+          <label>名称<input type="text" id="metaName" placeholder="脚本名称" /></label>
+          <label>分类<input type="text" id="metaCategory" placeholder="energy / saving / device" /></label>
+          <label>项目<input type="text" id="metaProjectCode" placeholder="default" /></label>
+          <label>备注<textarea id="metaRemark" rows="2" placeholder="可选备注"></textarea></label>
+        </div>
+      </div>
+
+      <!-- 运行参数（三段折叠） -->
+      <div class="panel-section params-section">
+        <h4>运行参数</h4>
+
+        <!-- Query Params -->
+        <div class="param-group" data-group="query">
+          <div class="param-group-header" data-target="query">
+            <svg class="param-arrow" width="10" height="10" viewBox="0 0 10 10"><polyline points="3,2 7,5 3,8" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+            <span>Query Params</span>
+            <span class="param-count" id="queryCount">0</span>
+          </div>
+          <div class="param-group-body" id="queryBody">
+            <div class="kv-list" id="queryList"></div>
+            <button class="btn-add-param" id="btnAddQuery" title="添加参数">
+              <svg width="11" height="11" viewBox="0 0 12 12"><line x1="6" y1="1" x2="6" y2="11" stroke="currentColor" stroke-width="1.5"/><line x1="1" y1="6" x2="11" y2="6" stroke="currentColor" stroke-width="1.5"/></svg>
+              <span>添加</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Body (JSON) -->
+        <div class="param-group" data-group="body">
+          <div class="param-group-header collapsed" data-target="body">
+            <svg class="param-arrow" width="10" height="10" viewBox="0 0 10 10"><polyline points="3,2 7,5 3,8" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+            <span>Body (JSON)</span>
+          </div>
+          <div class="param-group-body hidden" id="bodyBody">
+            <textarea id="runParams" rows="3" placeholder='{"year": 2026, "month": 1}'></textarea>
+          </div>
+        </div>
+
+        <!-- Headers -->
+        <div class="param-group" data-group="headers">
+          <div class="param-group-header collapsed" data-target="headers">
+            <svg class="param-arrow" width="10" height="10" viewBox="0 0 10 10"><polyline points="3,2 7,5 3,8" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+            <span>Headers</span>
+            <span class="param-count" id="headersCount">0</span>
+          </div>
+          <div class="param-group-body hidden" id="headersBody">
+            <div class="kv-list" id="headersList"></div>
+            <button class="btn-add-param" id="btnAddHeader" title="添加">
+              <svg width="11" height="11" viewBox="0 0 12 12"><line x1="6" y1="1" x2="6" y2="11" stroke="currentColor" stroke-width="1.5"/><line x1="1" y1="6" x2="11" y2="6" stroke="currentColor" stroke-width="1.5"/></svg>
+              <span>添加</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 输出面板 -->
+      <div class="panel-section output-section">
+        <div class="output-header">
+          <h4>执行结果</h4>
+          <div class="output-actions">
+            <button id="btnExpandOutput" class="btn-icon" title="展开查看">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+            </button>
+            <button id="btnClearOutput" class="btn-text" title="清空">清空</button>
+          </div>
+        </div>
+        <div id="outputPanel" class="output-content">
+          <span class="output-placeholder">点击"运行"查看结果</span>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- 执行结果展开浮动层 -->
+  <div id="outputOverlay" class="output-overlay">
+    <div class="overlay-panel">
+      <div class="overlay-header">
+        <h3>执行结果</h3>
+        <button id="btnCloseOverlay" class="btn-close" title="关闭">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div id="overlayOutputContent" class="overlay-content"></div>
+    </div>
+  </div>
+
+  <!-- 设置弹窗 -->
+  <dialog id="settingsDialog">
+    <div class="dialog-content">
+      <h3>连接设置</h3>
+      <label>
+        后端地址
+        <input type="text" id="settingBaseUrl" placeholder="http://localhost:8080" />
+      </label>
+      <label>
+        API Key (X-Groovy-Token)
+        <input type="password" id="settingApiKey" placeholder="your-secret-key" />
+      </label>
+      <label>
+        登录令牌 <span style="font-size:10px;color:var(--text-muted)">(可选，测试执行时获取用户信息)</span>
+        <input type="text" id="settingAuthToken" placeholder="Bearer eyJhbGciOi..." />
+      </label>
+      <div class="dialog-actions">
+        <button id="btnCancelSettings" class="btn-secondary">取消</button>
+        <button id="btnSaveSettings" class="btn-primary">连接</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- 新建脚本弹窗 -->
+  <dialog id="newScriptDialog">
+    <div class="dialog-content">
+      <h3>新建脚本</h3>
+      <label>bizCode<input type="text" id="newBizCode" placeholder="ems_energy_month_total" /></label>
+      <label>名称<input type="text" id="newName" placeholder="月度能耗查询" /></label>
+      <label>分类<input type="text" id="newCategory" value="energy" /></label>
+      <div class="dialog-actions">
+        <button id="btnCancelNew" class="btn-secondary">取消</button>
+        <button id="btnConfirmNew" class="btn-primary">创建</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- 主题切换 — 独立于业务逻辑 -->
+  <script>
+    (function() {
+      // 恢复上次选择的主题
+      var saved = localStorage.getItem('groovy-ide-theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', saved);
+
+      document.getElementById('btnTheme').addEventListener('click', function() {
+        var current = document.documentElement.getAttribute('data-theme') || 'dark';
+        var next = current === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        localStorage.setItem('groovy-ide-theme', next);
+
+        // 联动 Monaco 编辑器主题
+        if (window.monaco && window._editorInstance) {
+          window.monaco.editor.setTheme(next === 'light' ? 'groovy-light' : 'groovy-dark');
+        }
+      });
+    })();
+  </script>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
