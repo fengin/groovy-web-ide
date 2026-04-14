@@ -216,4 +216,6 @@ server {
 
 **Made with ❤️ by [凌封](https://aibook.ren)**
 
+技术交流圈：[https://aibook.ren](https://aibook.ren)（AI全书）
+
 </div>
