@@ -7,7 +7,7 @@ export default defineConfig({
     proxy: {
       // 本地开发时代理 Groovy 管理接口到后端，解决 CORS 问题
       '/api/groovy': {
-        target: 'http://localhost:8025',
+        target: 'http://localhost:8080',
         changeOrigin: true,
       },
     },

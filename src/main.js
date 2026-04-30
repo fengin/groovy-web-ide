@@ -67,6 +67,7 @@ const DEFAULT_SCRIPT = `import com.inxaiot.common.client.groovy.IBusinessScript
  *   ctx.t               - 追踪工具, 调用 t.log("msg") 可在 IDE 输出面板查看
  *   ctx.redis           - RedisTemplate (如果后端已注入)
  *   ctx.getBean         - BeanAccessor, 按需获取其他 Spring Bean (白名单限制)
+ *   ctx.tx              - TransactionTemplate, 编程式事务 (需服务端在 ctx 中注入)
  *   ctx.{beanName}      - 后端预注册的业务 Bean, 直接通过名称访问
  *
  * 【⚠️ 注意事项】
@@ -112,6 +113,25 @@ class Script implements IBusinessScript {
         // import com.weef.nacos.common.exception.AppCommonException
         // if (!params.year) throw new AppCommonException("请选择年份")
         // if (params.age && (params.age as int) < 0) throw new AppCommonException("年龄不能为负数")
+
+        // ---- 事务控制 ----
+        // 需要服务端在 IScriptContextFactory 中注入 TransactionTemplate:
+        //   ctx.put("tx", transactionTemplate)
+        //
+        // tx.execute() 闭包内的所有 DB 操作在同一事务中, 正常返回提交, 抛异常回滚:
+        // def orderId = ctx.tx.execute({ status ->
+        //     writeService.deductStock(params.productId, params.quantity)
+        //     def id = writeService.createOrder(params)
+        //     writeService.addLog(id, "下单成功")
+        //     return id
+        // })
+        //
+        // 手动回滚 (不抛异常):
+        // ctx.tx.execute({ status ->
+        //     writeService.updateA(params)
+        //     if (!验证通过) { status.setRollbackOnly() }
+        //     return result
+        // })
 
         // ---- 文件下载 ----
         // 网关自动根据返回类型切换: return byte[] → 文件下载, return 其他 → JSON
