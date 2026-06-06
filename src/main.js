@@ -543,6 +543,9 @@ function initEventListeners() {
     const tab = activeTab();
     if (!tab || !tab.lastRunResponse) return;
 
+    // 实时同步当前 UI 输入（如 query params, body textarea等）至内存状态
+    saveCurrentTabState();
+
     const headers = [];
     docHeadersTable.querySelectorAll('tr').forEach(tr => {
       const nameInput = tr.querySelector('.doc-header-name');
