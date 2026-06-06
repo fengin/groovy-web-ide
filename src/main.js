@@ -31,11 +31,18 @@ function createTabState(script) {
   if (script.docContent) {
     try {
       const doc = JSON.parse(script.docContent);
-      if (doc.inputExample) {
+      if (doc._bodyJson !== undefined) {
+        bodyJson = doc._bodyJson;
+      } else if (doc.inputExample) {
         bodyJson = doc.inputExample;
       }
+      
+      if (Array.isArray(doc._queryParams)) {
+        queryParams = doc._queryParams;
+      }
+      
       if (Array.isArray(doc.headers)) {
-        headerParams = doc.headers.map(h => ({ key: h.name || '', value: '' }));
+        headerParams = doc.headers.map(h => ({ key: h.name || '', value: h.value || '' }));
       }
     } catch (e) {
       console.error('解析docContent失败:', e);
@@ -541,11 +548,13 @@ function initEventListeners() {
       const nameInput = tr.querySelector('.doc-header-name');
       const reqCheckbox = tr.querySelector('.doc-header-required');
       const remarkInput = tr.querySelector('.doc-header-remark');
+      const valueInput = tr.querySelector('.doc-header-value');
       if (nameInput && nameInput.value.trim()) {
         headers.push({
           name: nameInput.value.trim(),
           required: reqCheckbox ? reqCheckbox.checked : false,
-          remark: remarkInput ? remarkInput.value.trim() : ''
+          remark: remarkInput ? remarkInput.value.trim() : '',
+          value: valueInput ? valueInput.value : ''
         });
       }
     });
@@ -576,7 +585,9 @@ function initEventListeners() {
       inputExample: JSON.stringify(cleanInputParams, null, 2),
       outputExample: JSON.stringify(tab.lastRunResponse, null, 2),
       headers: headers,
-      inputs: inputs
+      inputs: inputs,
+      _queryParams: tab.queryParams || [],
+      _bodyJson: tab.bodyJson || ''
     };
 
     try {
@@ -1519,11 +1530,11 @@ function openSaveDocDialog() {
 
   if (headerKeys.length > 0) {
     headerKeys.forEach(key => {
-      addDocHeaderRow(key, true, '');
+      addDocHeaderRow(key, true, '', headerParams[key]);
     });
   } else {
     defaultHeaders.forEach(key => {
-      addDocHeaderRow(key, true, '鉴权 Token');
+      addDocHeaderRow(key, true, '鉴权 Token', '');
     });
   }
 
@@ -1552,12 +1563,13 @@ function openSaveDocDialog() {
   saveDocDialog.showModal();
 }
 
-function addDocHeaderRow(name, required, remark) {
+function addDocHeaderRow(name, required, remark, value = '') {
   const tr = document.createElement('tr');
   tr.innerHTML = `
     <td><input type="text" class="doc-header-name" value="${escHtml(name)}" placeholder="Header名" /></td>
     <td style="text-align: center;"><input type="checkbox" class="doc-header-required" ${required ? 'checked' : ''} /></td>
     <td><input type="text" class="doc-header-remark" value="${escHtml(remark)}" placeholder="例如：用户鉴权Token" /></td>
+    <input type="hidden" class="doc-header-value" value="${escHtml(value)}" />
   `;
   docHeadersTable.appendChild(tr);
 }
