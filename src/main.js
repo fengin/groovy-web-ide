@@ -24,6 +24,24 @@ let activeTabId = null;       // 当前激活的 tab scriptId
 
 // 每个 Tab 的完整状态快照
 function createTabState(script) {
+  let bodyJson = '';
+  let headerParams = [];
+  let queryParams = [];
+
+  if (script.docContent) {
+    try {
+      const doc = JSON.parse(script.docContent);
+      if (doc.inputExample) {
+        bodyJson = doc.inputExample;
+      }
+      if (Array.isArray(doc.headers)) {
+        headerParams = doc.headers.map(h => ({ key: h.name || '', value: '' }));
+      }
+    } catch (e) {
+      console.error('解析docContent失败:', e);
+    }
+  }
+
   return {
     script,                           // 脚本完整数据
     editorContent: script.scriptContent || DEFAULT_SCRIPT,
@@ -36,10 +54,12 @@ function createTabState(script) {
     metaCategory: script.category || '',
     metaProjectCode: script.projectCode || '',
     metaRemark: script.remark || '',
-    queryParams: [],                  // [{key, value}]
-    bodyJson: '',                     // Body textarea 内容
-    headerParams: [],                 // [{key, value}]
+    queryParams,                      // [{key, value}]
+    bodyJson,                         // Body textarea 内容
+    headerParams,                     // [{key, value}]
     outputHtml: '<span class="output-placeholder">点击"运行"查看结果</span>',
+    lastRunParams: null,              // 上次运行的入参
+    lastRunResponse: null,            // 上次成功运行的出参
   };
 }
 
@@ -162,6 +182,21 @@ const trackToggle = $('#trackToggle');
 const settingsDialog = $('#settingsDialog');
 const newScriptDialog = $('#newScriptDialog');
 
+// 接口文档相关 DOM 元素
+const btnSaveDoc = $('#btnSaveDoc');
+const btnSaveDocOverlay = $('#btnSaveDocOverlay');
+const saveDocDialog = $('#saveDocDialog');
+const docRequestUri = $('#docRequestUri');
+const docHeadersTable = $('#docHeadersTable tbody');
+const docInputsTable = $('#docInputsTable tbody');
+const btnConfirmSaveDoc = $('#btnConfirmSaveDoc');
+const btnCancelSaveDoc = $('#btnCancelSaveDoc');
+const docDrawer = $('#docDrawer');
+const drawerDocContent = $('#drawerDocContent');
+const btnCloseDrawer = $('#btnCloseDrawer');
+const btnCopyShareUrl = $('#btnCopyShareUrl');
+
+let currentDocBizCode = ''; // 当前文档抽屉展示的 bizCode
 let currentConnectionStatus = 'disconnected';
 function isConnected() { return currentConnectionStatus === 'connected'; }
 
@@ -431,7 +466,12 @@ function initEventListeners() {
     outputPanel.innerHTML = '<span class="output-placeholder">点击"运行"查看结果</span>';
     // 同步到 Tab 状态
     const tab = activeTab();
-    if (tab) tab.outputHtml = outputPanel.innerHTML;
+    if (tab) {
+      tab.outputHtml = outputPanel.innerHTML;
+      tab.lastRunParams = null;
+      tab.lastRunResponse = null;
+    }
+    showSaveDocButtons(false);
   });
 
   // 放大镜按钮 — 展开执行结果浮动层
@@ -483,6 +523,88 @@ function initEventListeners() {
         renderTabs();
         updateSaveButtonState();
       }
+    });
+  });
+
+  // 接口文档相关事件监听
+  btnSaveDoc.addEventListener('click', openSaveDocDialog);
+  btnSaveDocOverlay.addEventListener('click', openSaveDocDialog);
+  btnCancelSaveDoc.addEventListener('click', () => saveDocDialog.close());
+  btnCloseDrawer.addEventListener('click', () => docDrawer.classList.remove('visible'));
+
+  btnConfirmSaveDoc.addEventListener('click', async () => {
+    const tab = activeTab();
+    if (!tab || !tab.lastRunResponse) return;
+
+    const headers = [];
+    docHeadersTable.querySelectorAll('tr').forEach(tr => {
+      const nameInput = tr.querySelector('.doc-header-name');
+      const reqCheckbox = tr.querySelector('.doc-header-required');
+      const remarkInput = tr.querySelector('.doc-header-remark');
+      if (nameInput && nameInput.value.trim()) {
+        headers.push({
+          name: nameInput.value.trim(),
+          required: reqCheckbox ? reqCheckbox.checked : false,
+          remark: remarkInput ? remarkInput.value.trim() : ''
+        });
+      }
+    });
+
+    const inputs = [];
+    docInputsTable.querySelectorAll('tr').forEach(tr => {
+      const fieldEl = tr.querySelector('.doc-input-field');
+      const typeSelect = tr.querySelector('.doc-input-type');
+      const reqCheckbox = tr.querySelector('.doc-input-required');
+      const remarkInput = tr.querySelector('.doc-input-remark');
+      if (fieldEl) {
+        inputs.push({
+          field: fieldEl.textContent.trim(),
+          type: typeSelect ? typeSelect.value : 'string',
+          required: reqCheckbox ? reqCheckbox.checked : false,
+          remark: remarkInput ? remarkInput.value.trim() : ''
+        });
+      }
+    });
+
+    const cleanInputParams = { ...tab.lastRunParams };
+    delete cleanInputParams._headers;
+    delete cleanInputParams._method;
+    delete cleanInputParams._uri;
+
+    const docData = {
+      requestUri: docRequestUri.value.trim() || '/api/gateway/groovy/execute',
+      inputExample: JSON.stringify(cleanInputParams, null, 2),
+      outputExample: JSON.stringify(tab.lastRunResponse, null, 2),
+      headers: headers,
+      inputs: inputs
+    };
+
+    try {
+      btnConfirmSaveDoc.disabled = true;
+      btnConfirmSaveDoc.textContent = '保存中...';
+      const resp = await api.saveDoc(tab.script.bizCode, JSON.stringify(docData));
+      if (resp && resp.code === 200) {
+        showToast('接口文档保存成功', 'success');
+        saveDocDialog.close();
+      } else {
+        showToast('接口文档保存失败: ' + (resp.message || '未知错误'));
+      }
+    } catch (e) {
+      showToast('接口文档保存失败: ' + e.message);
+    } finally {
+      btnConfirmSaveDoc.disabled = false;
+      btnConfirmSaveDoc.textContent = '保存文档';
+    }
+  });
+
+  btnCopyShareUrl.addEventListener('click', () => {
+    if (!currentDocBizCode) return;
+    const baseUrl = api.getBaseUrl() || window.location.origin;
+    const shareUrl = `${baseUrl}/api/groovy/script/doc/share/${currentDocBizCode}`;
+    navigator.clipboard.writeText(shareUrl).then(() => {
+      showToast('免密网页分享链接已成功复制到剪贴板！', 'success');
+    }).catch(e => {
+      showToast('复制链接失败，请手动选择复制：' + shareUrl);
     });
   });
 }
@@ -596,6 +718,7 @@ function renderScriptList() {
         <span class="tag ${s.status === 1 ? 'status-on' : 'status-off'}">${s.status === 1 ? '启用' : '禁用'}</span>
         <span class="tag">v${s.version || 1}</span>
       </div>
+      <button class="btn-show-doc" onclick="window._showDoc('${escHtml(s.bizCode)}', event)">文档</button>
     </div>`;
 
   let html = '';
@@ -637,6 +760,10 @@ window._toggleCategory = (cat) => {
     collapsedCategories.add(cat);
   }
   renderScriptList();
+};
+window._showDoc = (bizCode, event) => {
+  if (event) event.stopPropagation();
+  showDocDrawer(bizCode);
 };
 
 async function selectScript(id) {
@@ -726,6 +853,12 @@ function restoreTabState(tab) {
   // 按钮状态
   btnRun.disabled = false;
   updateSaveButtonState();
+
+  if (tab.lastRunResponse) {
+    showSaveDocButtons(true);
+  } else {
+    showSaveDocButtons(false);
+  }
 }
 
 /** 切换到指定 Tab */
@@ -798,6 +931,7 @@ function clearEditorPanel() {
   restoreKvRows('headersList', 'headersCount', []);
 
   outputPanel.innerHTML = '<span class="output-placeholder">点击"运行"查看结果</span>';
+  showSaveDocButtons(false);
 
   btnSave.disabled = true;
   btnSave.classList.remove('dirty');
@@ -861,6 +995,10 @@ async function saveScript() {
   if (!tab) return;
   const script = tab.script;
 
+  // 禁用保存按钮，防重复点击
+  btnSave.disabled = true;
+  btnSave.classList.remove('dirty');
+
   const content = editor.getValue();
   try {
     const resp = await api.updateScript(script.id, {
@@ -883,7 +1021,7 @@ async function saveScript() {
     script.category = metaCategory.value;
     script.projectCode = metaProjectCode.value;
     script.remark = metaRemark.value;
-    script.version = (script.version || 0) + 1;
+    script.version = resp.data || (script.version || 0) + 1;
     tab.isDirty = false;
     // 同步 Tab 状态
     tab.editorContent = content;
@@ -893,11 +1031,16 @@ async function saveScript() {
     tab.metaRemark = metaRemark.value;
 
     renderTabs();
-    updateSaveButtonState();
     await refreshList();
-    appendOutput('✓ 保存成功 (v' + script.version + ')，缓存已自动刷新', 'success');
+    if (resp.message && resp.message.includes('语法错误')) {
+      appendOutput('⚠ ' + resp.message, 'warn');
+    } else {
+      appendOutput('✓ 保存成功 (v' + script.version + ')，缓存已自动刷新', 'success');
+    }
   } catch (e) {
     appendOutput('✗ 保存失败: ' + e.message, 'error');
+  } finally {
+    updateSaveButtonState();
   }
 }
 
@@ -970,6 +1113,12 @@ async function runScript() {
 
     // ===== 正常 JSON 响应 =====
     const data = await resp.json();
+
+    if (data && data.code === 200) {
+      tab.lastRunParams = params;
+      tab.lastRunResponse = { code: data.code, message: data.message, data: data.data };
+      showSaveDocButtons(true);
+    }
 
     // ScriptResult 结构: { code, message, data, _trace, _track, _error, _stackTrace, cost }
 
@@ -1343,3 +1492,220 @@ window.addEventListener('beforeunload', (e) => {
     e.returnValue = '';
   }
 });
+
+// ============= 接口文档相关辅助函数 =============
+
+function showSaveDocButtons(show) {
+  const displayVal = show ? 'block' : 'none';
+  if (btnSaveDoc) btnSaveDoc.style.display = displayVal;
+  if (btnSaveDocOverlay) btnSaveDocOverlay.style.display = displayVal;
+}
+
+function openSaveDocDialog() {
+  const tab = activeTab();
+  if (!tab || !tab.lastRunResponse) return;
+
+  // 填充默认请求 URI
+  docRequestUri.value = '/api/gateway/groovy/execute';
+
+  // 清空表格
+  docHeadersTable.innerHTML = '';
+  docInputsTable.innerHTML = '';
+
+  // 1. 扫描 headers 并渲染
+  const headerParams = tab.lastRunParams._headers || {};
+  const headerKeys = Object.keys(headerParams);
+  const defaultHeaders = ['X-Groovy-Token'];
+
+  if (headerKeys.length > 0) {
+    headerKeys.forEach(key => {
+      addDocHeaderRow(key, true, '');
+    });
+  } else {
+    defaultHeaders.forEach(key => {
+      addDocHeaderRow(key, true, '鉴权 Token');
+    });
+  }
+
+  // 2. 扫描入参 params 并渲染
+  const cleanParams = { ...tab.lastRunParams };
+  delete cleanParams._headers;
+  delete cleanParams._method;
+  delete cleanParams._uri;
+
+  const paramKeys = Object.keys(cleanParams);
+  if (paramKeys.length > 0) {
+    paramKeys.forEach(key => {
+      const val = cleanParams[key];
+      let type = 'string';
+      if (typeof val === 'number') type = 'number';
+      else if (typeof val === 'boolean') type = 'boolean';
+      else if (Array.isArray(val)) type = 'array';
+      else if (typeof val === 'object' && val !== null) type = 'object';
+
+      addDocInputRow(key, type, true, '');
+    });
+  } else {
+    docInputsTable.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 10px;">本次运行未携带参数</td></tr>';
+  }
+
+  saveDocDialog.showModal();
+}
+
+function addDocHeaderRow(name, required, remark) {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="text" class="doc-header-name" value="${escHtml(name)}" placeholder="Header名" /></td>
+    <td style="text-align: center;"><input type="checkbox" class="doc-header-required" ${required ? 'checked' : ''} /></td>
+    <td><input type="text" class="doc-header-remark" value="${escHtml(remark)}" placeholder="例如：用户鉴权Token" /></td>
+  `;
+  docHeadersTable.appendChild(tr);
+}
+
+function addDocInputRow(field, type, required, remark) {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td class="doc-input-field" style="font-family: var(--font-mono); font-weight: 500; padding: 8px;">${escHtml(field)}</td>
+    <td>
+      <select class="doc-input-type" style="padding: 4px; border-radius: var(--radius-sm); border: 1px solid var(--border-primary); background: var(--bg-tertiary); color: var(--text-primary);">
+        <option value="string" ${type === 'string' ? 'selected' : ''}>string</option>
+        <option value="number" ${type === 'number' ? 'selected' : ''}>number</option>
+        <option value="boolean" ${type === 'boolean' ? 'selected' : ''}>boolean</option>
+        <option value="array" ${type === 'array' ? 'selected' : ''}>array</option>
+        <option value="object" ${type === 'object' ? 'selected' : ''}>object</option>
+      </select>
+    </td>
+    <td style="text-align: center;"><input type="checkbox" class="doc-input-required" ${required ? 'checked' : ''} /></td>
+    <td><input type="text" class="doc-input-remark" value="${escHtml(remark)}" placeholder="参数说明" /></td>
+  `;
+  docInputsTable.appendChild(tr);
+}
+
+async function showDocDrawer(bizCode) {
+  currentDocBizCode = bizCode;
+  drawerDocContent.innerHTML = '<div style="padding: 20px; color: var(--text-muted);">加载中...</div>';
+  docDrawer.classList.add('visible');
+
+  // 获取对应的脚本名称，可以从本地缓存的 scriptListData 中查
+  const scriptInfo = scriptListData.find(s => s.bizCode === bizCode) || {};
+  const name = scriptInfo.name || bizCode;
+
+  try {
+    const resp = await api.getDoc(bizCode);
+    if (resp && resp.code === 200 && resp.data) {
+      try {
+        const doc = JSON.parse(resp.data);
+        drawerDocContent.innerHTML = renderDocDrawerContent(bizCode, name, doc);
+      } catch (e) {
+        drawerDocContent.innerHTML = renderDocEmptyState(bizCode, name);
+      }
+    } else {
+      drawerDocContent.innerHTML = renderDocEmptyState(bizCode, name);
+    }
+  } catch (e) {
+    drawerDocContent.innerHTML = `<div style="padding: 20px; color: var(--red);">加载文档失败: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function renderDocEmptyState(bizCode, name) {
+  const cleanBizCode = escHtml(bizCode);
+  const cleanName = escHtml(name);
+  let html = `<h2 style="font-size: 16px; margin-bottom: 4px; color: var(--text-primary); font-weight:600;">${cleanName}</h2>`;
+  html += `<div style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); margin-bottom: 20px;">bizCode: ${cleanBizCode}</div>`;
+
+  html += `<div style="padding: 30px 20px; text-align: center; color: var(--text-muted); background: var(--bg-tertiary); border-radius: var(--radius); border: 1px dashed var(--border-primary);">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="margin-bottom: 12px; color: var(--text-muted); display: inline-block;"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+    <div style="font-size: 13px; font-weight: 500; margin-bottom: 6px; color: var(--text-secondary);">该接口尚未生成详细文档</div>
+    <div style="font-size: 12px; line-height: 1.5; text-align: left;">后端开发人员可以在调试自测成功后，点击右侧执行结果面板中的 <strong>「保存为文档示例」</strong> 按钮，系统将自动扫描并持久化接口出入参信息。</div>
+  </div>`;
+  return html;
+}
+
+function renderDocDrawerContent(bizCode, name, doc) {
+  let html = `<h2 style="font-size: 16px; margin-bottom: 4px; color: var(--text-primary); font-weight:600;">${escHtml(name || bizCode)}</h2>`;
+  html += `<div style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); margin-bottom: 20px;">bizCode: ${escHtml(bizCode)}</div>`;
+
+  html += `<div class="doc-detail-section" style="margin-bottom: 20px;">
+    <h4 style="font-size: 12px; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px;">1. 联调地址</h4>
+    <div style="display: flex; gap: 8px; align-items: center; background: var(--bg-tertiary); padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-primary);">
+      <span style="background: var(--green-bg); color: var(--green); padding: 2px 6px; border-radius: 3px; font-weight: bold; font-family: var(--font-mono); font-size: 11px;">POST</span>
+      <span style="font-family: var(--font-mono); flex: 1; word-break: break-all;">${escHtml(doc.requestUri || '/api/gateway/groovy/execute')}</span>
+      <button class="btn-text" onclick="navigator.clipboard.writeText('${doc.requestUri || '/api/gateway/groovy/execute'}').then(() => showToast('复制成功', 'success'))" style="padding: 2px 6px;">复制</button>
+    </div>
+    <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">* 真实Host请根据联调环境拼装</div>
+  </div>`;
+
+  // Headers
+  html += `<div class="doc-detail-section" style="margin-bottom: 20px;">
+    <h4 style="font-size: 12px; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px;">2. 请求 Headers</h4>`;
+  if (doc.headers && doc.headers.length > 0) {
+    html += `<table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+      <thead>
+        <tr style="border-bottom: 1px solid var(--border-primary); text-align: left; color: var(--text-muted);">
+          <th style="padding: 6px 0;">Header名称</th>
+          <th style="padding: 6px 0; width: 60px;">必填</th>
+          <th style="padding: 6px 0;">说明</th>
+        </tr>
+      </thead>
+      <tbody>`;
+    doc.headers.forEach(h => {
+      html += `<tr style="border-bottom: 1px solid var(--border-secondary);">
+        <td style="padding: 8px 0; font-family: var(--font-mono); font-weight: 500;">${escHtml(h.name)}</td>
+        <td style="padding: 8px 0; color: ${h.required ? 'var(--red)' : 'var(--text-muted)'};">${h.required ? '是' : '否'}</td>
+        <td style="padding: 8px 0; color: var(--text-secondary);">${escHtml(h.remark || '-')}</td>
+      </tr>`;
+    });
+    html += `</tbody></table>`;
+  } else {
+    html += `<div style="color: var(--text-muted); font-style: italic; font-size: 12px; padding: 8px 0;">无特殊Header要求，通用接口鉴权即可</div>`;
+  }
+  html += `</div>`;
+
+  // Params
+  html += `<div class="doc-detail-section" style="margin-bottom: 20px;">
+    <h4 style="font-size: 12px; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px;">3. 请求参数 (Body 中的 params)</h4>`;
+  if (doc.inputs && doc.inputs.length > 0) {
+    html += `<table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+      <thead>
+        <tr style="border-bottom: 1px solid var(--border-primary); text-align: left; color: var(--text-muted);">
+          <th style="padding: 6px 0;">参数名</th>
+          <th style="padding: 6px 0; width: 80px;">类型</th>
+          <th style="padding: 6px 0; width: 60px;">必填</th>
+          <th style="padding: 6px 0;">说明</th>
+        </tr>
+      </thead>
+      <tbody>`;
+    doc.inputs.forEach(input => {
+      html += `<tr style="border-bottom: 1px solid var(--border-secondary);">
+        <td style="padding: 8px 0; font-family: var(--font-mono); font-weight: 500;">${escHtml(input.field)}</td>
+        <td style="padding: 8px 0; font-family: var(--font-mono); color: var(--cyan);">${escHtml(input.type)}</td>
+        <td style="padding: 8px 0; color: ${input.required ? 'var(--red)' : 'var(--text-muted)'};">${input.required ? '是' : '否'}</td>
+        <td style="padding: 8px 0; color: var(--text-secondary);">${escHtml(input.remark || '-')}</td>
+      </tr>`;
+    });
+    html += `</tbody></table>`;
+  } else {
+    html += `<div style="color: var(--text-muted); font-style: italic; font-size: 12px; padding: 8px 0;">无额外参数，或未定义参数Schema</div>`;
+  }
+  html += `</div>`;
+
+  // Input JSON Example
+  if (doc.inputExample) {
+    html += `<div class="doc-detail-section" style="margin-bottom: 20px; position: relative;">
+      <h4 style="font-size: 12px; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px;">4. 请求 Body 示例</h4>
+      <button class="btn-text" onclick="navigator.clipboard.writeText(this.nextElementSibling.textContent).then(() => showToast('复制成功', 'success'))" style="position: absolute; right: 0; top: 0; padding: 2px 6px;">复制</button>
+      <pre style="background: var(--bg-tertiary); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-primary); font-family: var(--font-mono); font-size: 12px; overflow-x: auto; white-space: pre; margin: 0; max-height: 200px;">${escHtml(doc.inputExample)}</pre>
+    </div>`;
+  }
+
+  // Output JSON Example
+  if (doc.outputExample) {
+    html += `<div class="doc-detail-section" style="margin-bottom: 20px; position: relative;">
+      <h4 style="font-size: 12px; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px;">5. 返回结果示例</h4>
+      <button class="btn-text" onclick="navigator.clipboard.writeText(this.nextElementSibling.textContent).then(() => showToast('复制成功', 'success'))" style="position: absolute; right: 0; top: 0; padding: 2px 6px;">复制</button>
+      <pre style="background: var(--bg-tertiary); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-primary); font-family: var(--font-mono); font-size: 12px; overflow-x: auto; white-space: pre; margin: 0; max-height: 200px;">${escHtml(doc.outputExample)}</pre>
+    </div>`;
+  }
+
+  return html;
+}

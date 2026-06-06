@@ -165,6 +165,7 @@
         <div class="output-header">
           <h4>执行结果</h4>
           <div class="output-actions">
+            <button id="btnSaveDoc" class="btn-text" title="保存为文档示例" style="margin-right: 12px; color: var(--color-primary); display: none;">保存为文档示例</button>
             <button id="btnExpandOutput" class="btn-icon" title="展开查看">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
             </button>
@@ -183,6 +184,9 @@
     <div class="overlay-panel">
       <div class="overlay-header">
         <h3>执行结果</h3>
+        <div style="display: flex; gap: 15px; align-items: center; margin-left: auto; margin-right: 15px;">
+          <button id="btnSaveDocOverlay" class="btn-text" style="color: var(--color-primary); display: none;" title="保存为文档示例">保存为文档示例</button>
+        </div>
         <button id="btnCloseOverlay" class="btn-close" title="关闭">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
@@ -227,6 +231,65 @@
       </div>
     </div>
   </dialog>
+
+  <!-- 保存接口文档弹窗 -->
+  <dialog id="saveDocDialog">
+    <div class="dialog-content" style="max-width: 600px; max-height: 80vh; overflow-y: auto;">
+      <h3>保存为接口文档示例</h3>
+      <label>
+        网关请求 URI
+        <input type="text" id="docRequestUri" value="/api/gateway/groovy/execute" placeholder="网关接口真实地址" />
+      </label>
+      
+      <div class="doc-section" style="margin-top: 15px;">
+        <h4 style="margin-bottom: 8px;">Header 列表</h4>
+        <table class="doc-table" id="docHeadersTable" style="width:100%; border-collapse:collapse; margin-bottom: 15px;">
+          <thead>
+            <tr style="border-bottom: 1px solid var(--border-color);">
+              <th style="text-align:left; padding:6px;">Header名</th>
+              <th style="width: 80px; padding:6px;">必填</th>
+              <th style="text-align:left; padding:6px;">说明</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="doc-section" style="margin-top: 15px;">
+        <h4 style="margin-bottom: 8px;">请求入参 (params)</h4>
+        <table class="doc-table" id="docInputsTable" style="width:100%; border-collapse:collapse; margin-bottom: 15px;">
+          <thead>
+            <tr style="border-bottom: 1px solid var(--border-color);">
+              <th style="text-align:left; padding:6px;">参数字段名</th>
+              <th style="width: 80px; padding:6px;">类型</th>
+              <th style="width: 80px; padding:6px;">必填</th>
+              <th style="text-align:left; padding:6px;">说明</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="dialog-actions">
+        <button id="btnCancelSaveDoc" class="btn-secondary">取消</button>
+        <button id="btnConfirmSaveDoc" class="btn-primary">保存文档</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- 接口文档抽屉 -->
+  <div id="docDrawer" class="doc-drawer">
+    <div class="drawer-header">
+      <h3>接口文档</h3>
+      <button id="btnCloseDrawer" class="btn-close" title="关闭">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="drawer-content" id="drawerDocContent" style="padding: 20px; overflow-y: auto; flex: 1;"></div>
+    <div class="drawer-actions" style="padding: 15px; border-top: 1px solid var(--border-color); display: flex; gap: 10px;">
+      <button id="btnCopyShareUrl" class="btn-primary" style="flex: 1;">复制分享网页链接</button>
+    </div>
+  </div>
 
   <!-- 主题切换 — 独立于业务逻辑 -->
   <script>

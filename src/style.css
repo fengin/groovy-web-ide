@@ -983,3 +983,90 @@ dialog::backdrop { background: var(--dialog-backdrop); backdrop-filter: blur(4px
   background: var(--green);
   color: #1a1a1a;
 }
+
+/* ============= 接口文档抽屉 ============= */
+.doc-drawer {
+  position: fixed;
+  top: var(--header-h);
+  right: -500px;
+  width: 500px;
+  height: calc(100vh - var(--header-h));
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border-primary);
+  box-shadow: -5px 0 30px rgba(0,0,0,0.25);
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.doc-drawer.visible {
+  right: 0;
+}
+.drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border-primary);
+  flex-shrink: 0;
+}
+.drawer-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+/* ============= 保存文档弹窗表格 ============= */
+.doc-table th, .doc-table td {
+  padding: 8px;
+  border-bottom: 1px solid var(--border-secondary);
+}
+.doc-table input {
+  width: 100%;
+  padding: 4px 8px;
+  border: 1px solid var(--border-primary);
+  border-radius: 3px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  outline: none;
+}
+.doc-table input:focus {
+  border-color: var(--accent);
+}
+.doc-table select {
+  padding: 4px 6px;
+  border: 1px solid var(--border-primary);
+  border-radius: 3px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  outline: none;
+}
+
+/* ============= 脚本列表新增“文档”按钮 ============= */
+.script-item {
+  position: relative;
+}
+.script-item .btn-show-doc {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: none;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-primary);
+  border-radius: 3px;
+  color: var(--text-secondary);
+  padding: 2px 6px;
+  font-size: 10px;
+  cursor: pointer;
+  z-index: 5;
+}
+.script-item:hover .btn-show-doc {
+  display: block;
+}
+.script-item .btn-show-doc:hover {
+  background: var(--accent);
+  color: white;
+  border-color: transparent;
+}

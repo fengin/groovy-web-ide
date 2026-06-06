@@ -33,6 +33,7 @@
 - **Track 追踪模式** — 开启后可追踪脚本执行期间所有 Java Bean 调用链，包含方法名、参数、返回值和耗时
 - **多标签页编辑** — 同时打开多个脚本，支持标签切换、关闭确认、滚动导航
 - **脚本分类管理** — 按 category 自动分组折叠，支持实时搜索过滤
+- **接口文档与分享** — 联调测试成功后，支持一键保存接口规范（包括入参、出参和 Headers），支持在列表页点击快速预览接口文档，并可复制免密分享网页链接，便于前端无缝接入。
 
 ### 🎨 界面设计
 
@@ -152,6 +153,9 @@ IDE 通过 RESTful API 与 GroovyEngine 后端交互：
 | 刷新缓存 | POST   | `/api/groovy/script/refresh/:bizCode` | 刷新单个脚本缓存                   |
 | 全量刷新 | POST   | `/api/groovy/script/refresh/all`      | 重载全部脚本                     |
 | 批量部署 | POST   | `/api/groovy/script/deploy`           | 批量导入脚本                     |
+| 保存文档 | POST   | `/api/groovy/script/doc`              | 保存/更新接口文档规范            |
+| 获取文档 | GET    | `/api/groovy/script/doc/:bizCode`     | 获取文档 JSON 数据               |
+| 分享文档 | GET    | `/api/groovy/script/doc/share/:bizCode`| 免密独立网页分享(HTML)           |
 
 所有接口需要携带 `X-Groovy-Token` 请求头进行鉴权。
 

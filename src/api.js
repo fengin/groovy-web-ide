@@ -24,6 +24,10 @@ export function configure(baseUrl, apiKey, authToken = '') {
   AUTH_TOKEN = authToken;
 }
 
+export function getBaseUrl() {
+  return BASE_URL;
+}
+
 export function isConfigured() {
   return !!BASE_URL && !!API_KEY;
 }
@@ -144,4 +148,14 @@ export async function refreshAll() {
 /** 连接测试 */
 export async function ping() {
   return listScripts();
+}
+
+/** 保存/更新接口文档 */
+export async function saveDoc(bizCode, docContent) {
+  return request('POST', '/api/groovy/script/doc', { bizCode, docContent });
+}
+
+/** 获取接口文档 JSON */
+export async function getDoc(bizCode) {
+  return request('GET', `/api/groovy/script/doc/${bizCode}`);
 }
