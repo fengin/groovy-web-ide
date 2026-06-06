@@ -593,9 +593,11 @@ function initEventListeners() {
     try {
       btnConfirmSaveDoc.disabled = true;
       btnConfirmSaveDoc.textContent = '保存中...';
-      const resp = await api.saveDoc(tab.script.bizCode, JSON.stringify(docData));
+      const docJsonStr = JSON.stringify(docData);
+      const resp = await api.saveDoc(tab.script.bizCode, docJsonStr);
       if (resp && resp.code === 200) {
         showToast('接口文档保存成功', 'success');
+        tab.script.docContent = docJsonStr;
         saveDocDialog.close();
       } else {
         showToast('接口文档保存失败: ' + (resp.message || '未知错误'));
@@ -1523,18 +1525,62 @@ function openSaveDocDialog() {
   docHeadersTable.innerHTML = '';
   docInputsTable.innerHTML = '';
 
+  let savedDoc = null;
+  if (tab.script.docContent) {
+    try {
+      savedDoc = JSON.parse(tab.script.docContent);
+    } catch (e) {
+      console.error('解析已存文档失败:', e);
+    }
+  }
+
+  if (savedDoc && savedDoc.requestUri) {
+    docRequestUri.value = savedDoc.requestUri;
+  }
+
   // 1. 扫描 headers 并渲染
   const headerParams = tab.lastRunParams._headers || {};
   const headerKeys = Object.keys(headerParams);
   const defaultHeaders = ['X-Groovy-Token'];
 
-  if (headerKeys.length > 0) {
-    headerKeys.forEach(key => {
-      addDocHeaderRow(key, true, '', headerParams[key]);
+  // 合并已保存的 headers 与实际运行中的 headers
+  const savedHeadersMap = new Map();
+  if (savedDoc && Array.isArray(savedDoc.headers)) {
+    savedDoc.headers.forEach(h => {
+      savedHeadersMap.set(h.name, h);
+    });
+  }
+
+  const mergedHeaders = [];
+  // 先加入保存过的 headers，继承 required 和 remark
+  savedHeadersMap.forEach(h => {
+    const actualVal = headerParams[h.name];
+    mergedHeaders.push({
+      name: h.name,
+      required: h.required !== undefined ? h.required : true,
+      remark: h.remark || '',
+      value: actualVal !== undefined ? actualVal : (h.value || '')
+    });
+  });
+  // 再加入运行中新增 of headers
+  headerKeys.forEach(key => {
+    if (!savedHeadersMap.has(key)) {
+      mergedHeaders.push({
+        name: key,
+        required: true,
+        remark: '',
+        value: headerParams[key] || ''
+      });
+    }
+  });
+
+  if (mergedHeaders.length > 0) {
+    mergedHeaders.forEach(h => {
+      addDocHeaderRow(h.name, h.required, h.remark, h.value);
     });
   } else {
     defaultHeaders.forEach(key => {
-      addDocHeaderRow(key, true, '鉴权 Token', '');
+      addDocHeaderRow(key, true, '鉴权 Token', headerParams[key] || '');
     });
   }
 
@@ -1543,6 +1589,13 @@ function openSaveDocDialog() {
   delete cleanParams._headers;
   delete cleanParams._method;
   delete cleanParams._uri;
+
+  const savedInputsMap = new Map();
+  if (savedDoc && Array.isArray(savedDoc.inputs)) {
+    savedDoc.inputs.forEach(i => {
+      savedInputsMap.set(i.field, i);
+    });
+  }
 
   const paramKeys = Object.keys(cleanParams);
   if (paramKeys.length > 0) {
@@ -1554,7 +1607,12 @@ function openSaveDocDialog() {
       else if (Array.isArray(val)) type = 'array';
       else if (typeof val === 'object' && val !== null) type = 'object';
 
-      addDocInputRow(key, type, true, '');
+      const saved = savedInputsMap.get(key);
+      const isRequired = saved ? (saved.required !== undefined ? saved.required : true) : true;
+      const remark = saved ? (saved.remark || '') : '';
+      const finalType = saved ? (saved.type || type) : type;
+
+      addDocInputRow(key, finalType, isRequired, remark);
     });
   } else {
     docInputsTable.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 10px;">本次运行未携带参数</td></tr>';
